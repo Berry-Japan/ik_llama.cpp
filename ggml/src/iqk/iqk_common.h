@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include "iqk_config.h"
 
 #if defined IQK_IMPLEMENT

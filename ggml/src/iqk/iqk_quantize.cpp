@@ -1068,7 +1068,7 @@ void quantize_row_q8_1_x4_T(const float * x, Block * y, int64_t k) {
             }
         }
     }
-#else
+#elif defined(__AVX2__)
     for (int i = 0; i < nb; i++) {
         int i4 = i/4, ir = i%4;
         // Load elements into 4 AVX vectors
@@ -1162,6 +1162,47 @@ void quantize_row_q8_1_x4_T(const float * x, Block * y, int64_t k) {
             _mm256_storeu_si256((__m256i *)y4[i4].qs + ir, i0);
         } else {
             _mm256_storeu_si256((__m256i *)y[i].qs, i0);
+        }
+    }
+#else
+    // Scalar fallback for systems without AVX2 or NEON
+    for (int i = 0; i < nb; i++) {
+        int i4 = i/4, ir = i%4;
+        const float * xi = x + i*QK8_1;
+
+        float amax = 0.0f;
+        for (int j = 0; j < QK8_1; j++) {
+            amax = std::max(amax, std::abs(xi[j]));
+        }
+
+        const float d = amax / 127.f;
+        const float id = d > 0 ? 1.f/d : 0.f;
+
+        int isum = 0;
+        for (int j = 0; j < QK8_1; j++) {
+            const float v = xi[j] * id;
+            const int8_t q = std::round(v);
+            y[i].qs[j] = q;
+            isum += q;
+        }
+
+        if constexpr (std::is_same_v<Block, block_q8_1>) {
+            if (i < nb4) {
+                y4[i4].d[ir] = GGML_FP32_TO_FP16(d);
+                y4[i4].d[ir+4] = GGML_FP32_TO_FP16(d * isum);
+            } else {
+                y[i].d = GGML_FP32_TO_FP16(d);
+                y[i].s = GGML_FP32_TO_FP16(d * isum);
+            }
+        } else {
+            if (i < nb4) {
+                y4[i4].d[ir] = GGML_FP32_TO_BF16(d).bits;
+                y4[i4].d[ir+4] = GGML_FP32_TO_BF16(d * isum).bits;
+            } else {
+                y[i].d = GGML_FP32_TO_BF16(d).bits;
+                auto i16 = (int16_t *)&y[i].s;
+                i16[0] = isum;
+            }
         }
     }
 #endif
@@ -7169,12 +7210,13 @@ static void repack_q8_KV(int nrows, int n_per_row, const char * cx, char * cy, [
             vst1q_s8_x2(qy + 64 + 128*ib, m2);
             vst1q_s8_x2(qy + 96 + 128*ib, m3);
 #else
-            // TODO
-            for (int l = 0; l < 4; ++l) {
-                for (int k = 0; k < 8; ++k) for (int i = 0; i < 4; ++i) {
-                    y[ib].qs[32*l+4*k+i+  0] = x8[k][ib].qs[i+4*l+ 0];
-                    y[ib].qs[32*l+4*k+i+128] = x8[k][ib].qs[i+4*l+16];
-                }
+            // Scalar fallback for systems without AVX2 or NEON
+            int8_t * y8 = (int8_t *)qy + 128*ib;
+            for (int i = 0; i < 128; ++i) {
+                int r = i / 32;
+                int k = (i / 4) % 8;
+                int l = i % 4;
+                y8[i] = x8[k][16*ib + l + 4*r];
             }
 #endif
 

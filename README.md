@@ -37,6 +37,13 @@ On Debian/Ubuntu Linux, install the required packages (if using another Linux di
 apt-get update && apt-get install build-essential git libcurl4-openssl-dev curl libgomp1 cmake
 ```
 
+### Build for old Mac Pro (2013)
+
+```
+cmake -B build -DGGML_NATIVE=OFF -DGGML_IQK=OFF
+cmake --build build --config Release -j$(sysctl -n hw.ncpu)
+```
+
 ### Build for CPU
 
 ```
