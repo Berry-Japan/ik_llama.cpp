@@ -44,6 +44,23 @@ cmake -B build -DGGML_NATIVE=OFF -DGGML_IQK=OFF
 cmake --build build --config Release -j$(sysctl -n hw.ncpu)
 ```
 
+https://huggingface.co/unsloth/gemma-4-26B-A4B-it-GGUF
+
+```
+llama-cli \
+  --model gemma-4-26B-A4B-it-Q8_0.gguf \
+  --model-draft gemma-4-26B-A4B-it-Q8_0-MTP.gguf/\
+wikitext-2-raw_ik-llama-mtp_drafter-conservative/\
+gemma-4-26B-A4B-it-Q8_0-MTP.gguf \
+  --spec-type mtp:n_max=3,p-min=0.0 --spec-autotune \
+  -cnv --color --jinja --special \
+  -sm graph -smgs -sas -mea 256 --split-mode-f32 \
+  --temp 0.7 -t 8 --parallel 8 \
+  --cpu-moe --merge-up-gate-experts \
+  --flash-attn on --mla-use 3 \
+  --mlock --run-time-repack --no-kv-offload
+```
+
 ### Build for CPU
 
 ```
